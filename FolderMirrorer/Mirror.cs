@@ -51,6 +51,8 @@ public partial class RobocopyMirror
         Enabled = enabled;
     }
 
+    static readonly SingletonMultiLogger Logger = SingletonMultiLogger.Instance;
+
     [GeneratedRegex("^([ 0-9a-zA-Z_-])+$")]
     private static partial Regex GeneratedAllowedDestinationRegex();
     public static readonly Regex AllowedDestinationRegex = GeneratedAllowedDestinationRegex();
@@ -78,7 +80,7 @@ public partial class RobocopyMirror
 
         if (!isValid)
         {
-            Printer.Print(errors);
+            await Logger.Error(errors);
             return false;
         }
 
@@ -86,13 +88,13 @@ public partial class RobocopyMirror
 
         if (exitCode > 8)
         {
-            Printer.Print($"Error occured in {Name}: {exitCode}", ConsoleColor.Red);
-            Printer.Print(stdOut);
-            Printer.Print(stdErr);
+            await Logger.Error($"Error occured in {Name}: {exitCode}");
+            await Logger.Error(stdOut);
+            await Logger.Error(stdErr);
             return false;
         }
 
-        PrintResult(stdOut);
+        await LogResult(stdOut);
 
         return true;
     }
@@ -101,7 +103,7 @@ public partial class RobocopyMirror
     {
         var arguments = new[] {
             $"\"{Source}\"",
-            $"\"{Path.Combine(Directory.GetCurrentDirectory(), RelativeDestination)}\"",
+            $"\"{Path.Combine(AppContext.BaseDirectory, RelativeDestination)}\"",
             "/e",  // Copy subdirectories
             "/j",  // Unbuffered IO
             "/mir",  // Mirror the directory tree
@@ -141,7 +143,7 @@ public partial class RobocopyMirror
 
     }
 
-    private static void PrintResult(string stdOut)
+    private static async Task LogResult(string stdOut)
     {
         static Match GetMatch(Regex regex, string[] lines)
         {
@@ -169,10 +171,10 @@ public partial class RobocopyMirror
         var bytesPretty = IntegersToString(GetMatch(bytesRegex, stdOutLines), new[] { "B", "KiB", "MiB", "GiB" }, 1024);
         var timesPretty = TimesToString(GetMatch(timesRegex, stdOutLines));
 
-        Printer.Print($"Dirs: {dirsPretty}", ConsoleColor.Cyan);
-        Printer.Print($"Files: {filesPretty}", ConsoleColor.Cyan);
-        Printer.Print($"Bytes: {bytesPretty}", ConsoleColor.Cyan);
-        Printer.Print($"Times: {timesPretty}", ConsoleColor.Cyan);
+        await Logger.Info($"Dirs: {dirsPretty}");
+        await Logger.Info($"Files: {filesPretty}");
+        await Logger.Info($"Bytes: {bytesPretty}");
+        await Logger.Info($"Times: {timesPretty}");
     }
 
     private static string TimesToString(Match match)

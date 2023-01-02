@@ -1,33 +1,28 @@
 ﻿using FolderMirrorer;
 
+var logger = SingletonMultiLogger.Instance;
 
-var mirrorsConfigFileLocation = Path.Combine(Directory.GetCurrentDirectory(), "mirrors.json");
+var mirrorsConfigFileLocation = Path.Combine(AppContext.BaseDirectory, "mirrors.json");
 if (!File.Exists(mirrorsConfigFileLocation))
 {
-    Printer.Print("Config file does not exist", ConsoleColor.Red);
+    await logger.Error("Config file does not exist");
     Environment.Exit(1);
 }
 
 var mirrors = await MirrorList<RobocopyMirror>.LoadFromPath(mirrorsConfigFileLocation);
-
 if (!mirrors.IsValid(out var errors))
 {
-    Printer.Print("Problems found in mirrors", ConsoleColor.Red);
-    foreach (var error in errors)
-    {
-        Printer.Print(error, ConsoleColor.Red);
-    }
+    await logger.Error(errors);
     Environment.Exit(1);
 }
 else
 {
-    Printer.Print("All Mirrors look good, starting", ConsoleColor.Green);
-    Printer.Print("");
+    await logger.Info("All mirrors look good, starting");
 }
 
 foreach (var mirror in mirrors.Where(m => m.Enabled))
 {
-    Printer.Print(mirror.ToString());
+    await logger.Info(mirror.ToString());
 
     // Note: intentionally awaiting each individual mirroring task, as robocopy is set to use threads
     var success = await mirror.DoMirror();
@@ -35,12 +30,8 @@ foreach (var mirror in mirrors.Where(m => m.Enabled))
     {
         Environment.Exit(1);
     }
-
-    Printer.Print("");
+    SingletonMultiLogger.NewLine();
 }
-
-
-Printer.Print("DONE, sleeping a bit to let you read output", ConsoleColor.Green);
 
 await Task.Delay(TimeSpan.FromSeconds(5));
 Environment.Exit(0);
