@@ -1,5 +1,4 @@
 ﻿using FolderMirrorer;
-using System.Text.Json;
 
 
 var mirrorsConfigFileLocation = Path.Combine(Directory.GetCurrentDirectory(), "mirrors.json");
@@ -9,14 +8,7 @@ if (!File.Exists(mirrorsConfigFileLocation))
     Environment.Exit(1);
 }
 
-var jsonString = File.ReadAllText(mirrorsConfigFileLocation);
-var mirrors = JsonSerializer.Deserialize<MirrorList<RobocopyMirror>>(jsonString);
-
-if (mirrors == null)
-{
-    Printer.Print("Could not parse jsonfile");
-    Environment.Exit(1);
-}
+var mirrors = await MirrorList<RobocopyMirror>.LoadFromPath(mirrorsConfigFileLocation);
 
 if (!mirrors.IsValid(out var errors))
 {
@@ -37,7 +29,8 @@ foreach (var mirror in mirrors.Where(m => m.Enabled))
 {
     Printer.Print(mirror.ToString());
 
-    var success = mirror.DoMirror();
+    // Note: intentionally awaiting each individual mirroring task, as robocopy is set to use threads
+    var success = await mirror.DoMirror();
     if (!success)
     {
         Environment.Exit(1);
@@ -49,5 +42,5 @@ foreach (var mirror in mirrors.Where(m => m.Enabled))
 
 Printer.Print("DONE, sleeping a bit to let you read output", ConsoleColor.Green);
 
-Thread.Sleep(TimeSpan.FromSeconds(5));
+await Task.Delay(TimeSpan.FromSeconds(5));
 Environment.Exit(0);

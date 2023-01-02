@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace FolderMirrorer;
@@ -25,6 +26,13 @@ public class MirrorList<T> : List<T>
         }
 
         return errors.Count == 0;
+    }
+
+    public static async Task<MirrorList<T>> LoadFromPath(string path)
+    {
+        using var stream = File.OpenRead(path);
+        var mirrors = await JsonSerializer.DeserializeAsync<MirrorList<T>>(stream);
+        return mirrors ?? throw new Exception("Could not load mirrors");
     }
 }
 
@@ -64,7 +72,7 @@ public partial class RobocopyMirror
         return errors.Count == 0;
     }
 
-    public bool DoMirror()
+    public async Task<bool> DoMirror()
     {
         var isValid = IsValid(out var errors);
 
@@ -74,8 +82,24 @@ public partial class RobocopyMirror
             return false;
         }
 
-        var arguments = new[]
+        (var exitCode, var stdOut, var stdErr) = await RunMirrorAndReturnOutput();
+
+        if (exitCode > 8)
         {
+            Printer.Print($"Error occured in {Name}: {exitCode}", ConsoleColor.Red);
+            Printer.Print(stdOut);
+            Printer.Print(stdErr);
+            return false;
+        }
+
+        PrintResult(stdOut);
+
+        return true;
+    }
+
+    private async Task<(int exitCode, string stdOut, string stdErr)> RunMirrorAndReturnOutput()
+    {
+        var arguments = new[] {
             $"\"{Source}\"",
             $"\"{Path.Combine(Directory.GetCurrentDirectory(), RelativeDestination)}\"",
             "/e",  // Copy subdirectories
@@ -103,30 +127,18 @@ public partial class RobocopyMirror
             RedirectStandardError = true,
         };
 
-        var stdOut = "";
-        var stdErr = "";
+        using var p = new Process() { StartInfo = startInfo };
+        p.Start();
 
-        using (var p = new Process() { StartInfo = startInfo })
-        {
-            p.Start();
+        var stdOutTask = p.StandardOutput.ReadToEndAsync();
+        var stdErrTask = p.StandardError.ReadToEndAsync();
 
-            stdOut = p.StandardOutput.ReadToEnd();
-            stdErr = p.StandardError.ReadToEnd();
+        Task.WaitAll(stdOutTask, stdErrTask);
 
-            p.WaitForExit();
+        await p.WaitForExitAsync();
 
-            if (p.ExitCode > 8)
-            {
-                Printer.Print($"Error occured in {Name}: {p.ExitCode}", ConsoleColor.Red);
-                Printer.Print(stdOut);
-                Printer.Print(stdErr);
-                return false;
-            }
-        }
+        return (p.ExitCode, stdOutTask.Result, stdErrTask.Result);
 
-        PrintResult(stdOut);
-
-        return true;
     }
 
     private static void PrintResult(string stdOut)
