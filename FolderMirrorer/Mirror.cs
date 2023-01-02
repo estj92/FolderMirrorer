@@ -43,7 +43,7 @@ public partial class RobocopyMirror
         Enabled = enabled;
     }
 
-    [GeneratedRegex("^([0-9a-zA-Z_-])+$")]
+    [GeneratedRegex("^([ 0-9a-zA-Z_-])+$")]
     private static partial Regex GeneratedAllowedDestinationRegex();
     public static readonly Regex AllowedDestinationRegex = GeneratedAllowedDestinationRegex();
 
@@ -76,8 +76,8 @@ public partial class RobocopyMirror
 
         var arguments = new[]
         {
-            Source,
-            Path.Combine(Directory.GetCurrentDirectory(), RelativeDestination),
+            $"\"{Source}\"",
+            $"\"{Path.Combine(Directory.GetCurrentDirectory(), RelativeDestination)}\"",
             "/e",  // Copy subdirectories
             "/j",  // Unbuffered IO
             "/mir",  // Mirror the directory tree
